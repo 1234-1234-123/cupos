@@ -877,7 +877,7 @@
 <script>
 // ══ SUPABASE ══
 const SUPABASE_URL = 'https://lqvhzlrzbfddgssmixtw.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_0mBGFG7EWbYJloCcCS8HiQ_LUqbnEMe';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxdmh6bHJ6YmZkZGdzc21peHR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MDI2NDIsImV4cCI6MjA5NDE3ODY0Mn0._G331m37PuWtNvhBaghtv-uJEMToXz8pvN6ME7Ea3mY';
 
 async function sbFetch(table, opts = {}) {
   const url = `${SUPABASE_URL}/rest/v1/${table}${opts.query||''}`;
