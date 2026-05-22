@@ -651,7 +651,7 @@
               <option>Monjas</option><option>Escuintla</option><option>Peten</option><option>Zacapa</option>
             </select>
             <input type="text" class="filter-input" id="filtBuscar" placeholder="🔍 Buscar..." style="width:150px;" oninput="renderSolicitudes()">
-            <button class="btn btn-warning btn-sm" id="btnTrasladar" onclick="confirmarTrasladar()" style="display:none;">📦 Trasladar Pendientes</button>
+            <button class="btn btn-outline btn-sm" onclick="actualizarSolicitudesDesdeSupabase()" id="btnActualizarCupos">🔄 Actualizar</button>
             <button class="btn btn-ghost btn-sm" onclick="exportarCSV()">📥 CSV</button>
           </div>
         </div>
@@ -1020,25 +1020,12 @@ async function cargarDatos() {
       sbFetch('cupos?select=*')
     ]);
     if (us && us.length > 0) {
-      usuarios = us.map(u=>({ username:u.username, password:u.password, rol:u.rol, centro:u.centro, creadoPor:u.creado_por, fechaCreacion:u.fecha_creacion }));
-      if (!usuarios.find(u=>u.username==='admin')) usuarios.unshift({ username:'admin', password:'admin123', rol:'admin', centro:null, creadoPor:'Sistema', fechaCreacion:'' });
+      usuarios = us.map(u=>({ username:u.username, password:u.password, rol:u.rol, centro:u.centro, creadoPor:u.creado_por, fechaCreacion:u.fecha_creacion, email:u.email||'' }));
+      if (!usuarios.find(u=>u.username==='admin')) usuarios.unshift({ username:'admin', password:'admin123', rol:'admin', centro:null, creadoPor:'Sistema', fechaCreacion:'', email:'' });
       guardarUsuarios();
     }
-    if (sols && sols.length > 0) {
-      solicitudes = sols.map(s => ({
-        id: s.id, centro:s.centro, ingresadoPor:s.ingresado_por, fechaIngreso:s.fecha_ingreso,
-        estado:s.estado, montoAprobado:s.monto_aprobado, obsAdmin:s.obs_admin, revisadoPor:s.revisado_por,
-        area:s.area, no:s.no, fecha:s.fecha, nocliente:s.nocliente, credito:s.credito,
-        nombre:s.nombre, patrono:s.patrono, renglon:s.renglon, tipoproducto:s.tipoproducto,
-        segmento:s.segmento, fiador:s.fiador, tiempolaborar:s.tiempolaborar, monto:s.monto,
-        plazo:s.plazo, tasa:s.tasa, tasapreca:s.tasapreca, gastos:s.gastos, cuota:s.cuota,
-        salario:s.salario, montoliquido:s.montoliquido, liquidez:s.liquidez,
-        rci_ii:s.rci_ii, rci_gi:s.rci_gi, rci_if:s.rci_if, rci_gf:s.rci_gf,
-        politica:s.politica, nivel:s.nivel, bajatasa:s.bajatasa, exoneracion:s.exoneracion,
-        referido:s.referido, canal:s.canal, tipocliente:s.tipocliente,
-        exc1:s.exc1, exc2:s.exc2, exc3:s.exc3, exc4:s.exc4,
-        exc5:s.exc5, exc6:s.exc6, exc7:s.exc7, exc8:s.exc8, totalexc:s.totalexc
-      }));
+    if (sols && Array.isArray(sols) && sols.length > 0) {
+      solicitudes = sols.map(s => mapSolicitud(s));
       guardarSolicitudes();
     }
   } catch(e) {}
@@ -1124,7 +1111,7 @@ function switchTab(name) {
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('panel-'+name).classList.add('active');
   if(name==='dashboard')   renderDashboard();
-  if(name==='solicitudes') renderSolicitudes();
+  if(name==='solicitudes') { actualizarSolicitudesDesdeSupabase(); }
   if(name==='reportes')    renderReportes();
   if(name==='bolson')      renderBolson();
   if(name==='admin')       { renderUsuarios(); renderCuposAdmin(); }
@@ -1306,6 +1293,56 @@ function renderDashboard() {
   </tr>`).join('');
 }
 
+// ══ ACTUALIZAR DESDE SUPABASE ══
+async function actualizarSolicitudesDesdeSupabase() {
+  const btn = document.getElementById('btnActualizarCupos');
+  if (btn) { btn.textContent = '⏳ Cargando...'; btn.disabled = true; }
+  try {
+    let url = `${SUPABASE_URL}/rest/v1/cupos?select=*&order=id.asc`;
+    if (currentRol === 'subjefe') url += `&centro=eq.${encodeURIComponent(currentCentro)}`;
+    const res = await fetch(url, {
+      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (currentRol === 'subjefe') {
+        solicitudes = solicitudes.filter(s=>s.centro!==currentCentro);
+        solicitudes = solicitudes.concat(data.map(s=>mapSolicitud(s)));
+      } else {
+        solicitudes = data.map(s=>mapSolicitud(s));
+      }
+      guardarSolicitudes();
+      renderSolicitudes();
+      renderDashboard();
+      showToast(`✅ ${data.length} solicitud(es) cargadas.`, 'success');
+    }
+  } catch(e) {
+    showToast('⚠ Error de conexión.', 'warning');
+  }
+  if (btn) { btn.textContent = '🔄 Actualizar'; btn.disabled = false; }
+}
+
+function mapSolicitud(s) {
+  return {
+    id: s.id, centro: s.centro, ingresadoPor: s.ingresado_por,
+    fechaIngreso: s.fecha_ingreso || '', estado: s.estado,
+    montoAprobado: s.monto_aprobado || 0, obsAdmin: s.obs_admin || '',
+    revisadoPor: s.revisado_por || '', area: s.area, no: s.no,
+    fecha: s.fecha, nocliente: s.nocliente, credito: s.credito,
+    nombre: s.nombre, patrono: s.patrono, renglon: s.renglon,
+    tipoproducto: s.tipoproducto, segmento: s.segmento, fiador: s.fiador,
+    tiempolaborar: s.tiempolaborar, monto: s.monto, plazo: s.plazo,
+    tasa: s.tasa, tasapreca: s.tasapreca, gastos: s.gastos, cuota: s.cuota,
+    salario: s.salario, montoliquido: s.montoliquido, liquidez: s.liquidez,
+    rci_ii: s.rci_ii, rci_gi: s.rci_gi, rci_if: s.rci_if, rci_gf: s.rci_gf,
+    politica: s.politica, nivel: s.nivel, bajatasa: s.bajatasa,
+    exoneracion: s.exoneracion, referido: s.referido, canal: s.canal,
+    tipocliente: s.tipocliente, exc1: s.exc1, exc2: s.exc2, exc3: s.exc3,
+    exc4: s.exc4, exc5: s.exc5, exc6: s.exc6, exc7: s.exc7, exc8: s.exc8,
+    totalexc: s.totalexc
+  };
+}
+
 // ══ MESES ══
 function getMesesDisponibles() {
   const meses = new Set();
@@ -1341,19 +1378,14 @@ function renderSolicitudes() {
 
   let filtered = solicitudes.filter(s=>{
     const d = s.fecha || s.fechaIngreso?.slice(0,10) || '';
-    if (mesSeleccionado && d.slice(0,7) !== mesSeleccionado) return false;
+    // Pendientes siempre visibles en todos los meses hasta resolverse
+    const esPendiente = s.estado === 'Pendiente';
+    if (!esPendiente && mesSeleccionado && d.slice(0,7) !== mesSeleccionado) return false;
     if (filtEstado && s.estado !== filtEstado) return false;
     if (filtCentro && s.centro !== filtCentro) return false;
     if (buscar && !JSON.stringify(s).toLowerCase().includes(buscar)) return false;
     return true;
   });
-
-  // Mostrar botón trasladar solo si es mes anterior y hay pendientes y es admin
-  const mesActual = primerDiaMes().slice(0,7);
-  const hayPendientes = filtered.some(s=>s.estado==='Pendiente');
-  const esMesAnterior = mesSeleccionado < mesActual;
-  const btnTrasladar = document.getElementById('btnTrasladar');
-  if (btnTrasladar) btnTrasladar.style.display = (currentRol==='admin' && hayPendientes && esMesAnterior) ? '' : 'none';
 
   const tbody = document.getElementById('solicitudesBody');
   const empty = document.getElementById('solicitudesEmpty');
@@ -1367,10 +1399,12 @@ function renderSolicitudes() {
       : esTrasladado
       ? `<span style="color:var(--text3);font-size:11px;font-style:italic;">Trasladado</span>`
       : `<span style="color:var(--text3);font-size:12px;">${s.revisadoPor?'Por: '+s.revisadoPor:'—'}</span>`;
-    return `<tr style="${esTrasladado?'opacity:.6':''}">
+
+    const esPend = s.estado==='Pendiente';
+    return `<tr style="${esPend?'background:#fffbeb;':''}${esTrasladado?'opacity:.6':''}">
       <td style="color:var(--text3)">${i+1}</td>
       <td><strong style="color:var(--accent)">${s.centro}</strong></td>
-      <td>${s.fecha||''}</td>
+      <td>${s.fecha||''} ${esPend?'<span style="font-size:10px;color:var(--warning);font-weight:700">●PENDIENTE</span>':''}</td>
       <td>${s.nocliente||'—'}</td>
       <td>${s.nombre||'—'}</td>
       <td style="font-weight:600">${fmtQ(s.monto)}</td>
