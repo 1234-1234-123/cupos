@@ -312,6 +312,7 @@
     <div class="nav-item" onclick="switchTab('solicitudes')">📋 Solicitudes</div>
     <div class="nav-item" onclick="switchTab('reportes')">📈 Reportes</div>
     <div class="nav-item" id="navBolson" style="display:none" onclick="switchTab('bolson')">💰 Bolsón</div>
+    <div class="nav-item" id="navMant" style="display:none" onclick="switchTab('mantenimiento')">🔧 Mantenimiento</div>
     <div class="nav-item" id="navAdmin" style="display:none" onclick="switchTab('admin')">⚙️ Administración</div>
   </div>
 
@@ -604,19 +605,8 @@
           <!-- Sección 5: Excepciones -->
           <div class="form-section">
             <div class="form-section-title">⚠️ Excepciones</div>
-            <div class="form-grid">
-              <div class="field-group"><label>Excepción 1</label><input type="text" id="f_exc1" placeholder="Descripción"></div>
-              <div class="field-group"><label>Excepción 2</label><input type="text" id="f_exc2" placeholder="Descripción"></div>
-              <div class="field-group"><label>Excepción 3</label><input type="text" id="f_exc3" placeholder="Descripción"></div>
-              <div class="field-group"><label>Excepción 4</label><input type="text" id="f_exc4" placeholder="Descripción"></div>
-              <div class="field-group"><label>Excepción 5</label><input type="text" id="f_exc5" placeholder="Descripción"></div>
-              <div class="field-group"><label>Excepción 6</label><input type="text" id="f_exc6" placeholder="Descripción"></div>
-              <div class="field-group"><label>Excepción 7</label><input type="text" id="f_exc7" placeholder="Descripción"></div>
-              <div class="field-group"><label>Excepción 8</label><input type="text" id="f_exc8" placeholder="Descripción"></div>
-              <div class="field-group">
-                <label>Total de Excepciones</label>
-                <input type="number" id="f_totalexc" placeholder="0" readonly style="opacity:.7;cursor:not-allowed;">
-              </div>
+            <div class="form-grid" id="excepcionesGrid">
+              <!-- Se generan dinámicamente desde opcionesExcepciones -->
             </div>
           </div>
 
@@ -703,6 +693,61 @@
             </tr></thead>
             <tbody id="repBody"></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- MANTENIMIENTO -->
+    <div class="panel" id="panel-mantenimiento">
+      <div class="page-header">
+        <h1>🔧 Mantenimiento</h1>
+        <p>Administra las opciones de los campos del sistema</p>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+
+        <!-- Excepciones -->
+        <div class="card">
+          <div class="card-header">
+            <h2>⚠️ Opciones de Excepciones</h2>
+            <button class="btn btn-success btn-sm" onclick="agregarExcepcion()">➕ Agregar</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Nombre</th><th>Acción</th></tr></thead>
+              <tbody id="excepcionesTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Otros campos configurables -->
+        <div style="display:flex;flex-direction:column;gap:20px;">
+
+          <div class="card">
+            <div class="card-header">
+              <h2>🏢 Canales de Ingreso</h2>
+              <button class="btn btn-success btn-sm" onclick="agregarOpcion('canales')">➕ Agregar</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Nombre</th><th>Acción</th></tr></thead>
+                <tbody id="canalesTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2>👥 Tipos de Cliente</h2>
+              <button class="btn btn-success btn-sm" onclick="agregarOpcion('tiposCliente')">➕ Agregar</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Nombre</th><th>Acción</th></tr></thead>
+                <tbody id="tiposClienteTable"></tbody>
+              </table>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -1073,8 +1118,9 @@ function doLogin() {
   const rolTag = document.getElementById('topRol');
   rolTag.textContent = found.rol==='admin' ? '🛡️ Admin' : '👔 Sub Jefe';
   rolTag.className   = 'role-tag ' + (found.rol==='admin'?'role-admin':'role-subjefe');
-  document.getElementById('navAdmin').style.display = found.rol==='admin' ? '' : 'none';
-  document.getElementById('navBolson').style.display = found.rol==='admin' ? '' : 'none';
+  document.getElementById('navAdmin').style.display  = found.rol==='admin' ? '' : 'none';
+  document.getElementById('navBolson').style.display  = found.rol==='admin' ? '' : 'none';
+  document.getElementById('navMant').style.display    = found.rol==='admin' ? '' : 'none';
 
   // Filtros
   const fc = document.getElementById('filtCentroS');
@@ -1086,10 +1132,11 @@ function doLogin() {
 
   initFechas();
   document.getElementById('f_fecha').valueAsDate = new Date();
-  // Auto-fill área de ingreso y correlativo
   document.getElementById('f_area').value = found.centro || '';
   document.getElementById('f_no').value   = found.centro ? peekCorrelativo(found.centro) : '';
   contarExcepciones();
+  renderExcepcionesGrid();
+  renderDropdownsForm();
   renderDashboard(); renderSolicitudes(); renderReportes();
 }
 
@@ -1106,15 +1153,17 @@ function doLogout() {
 
 // ══ TABS ══
 function switchTab(name) {
-  const names = ['dashboard','solicitud','solicitudes','reportes','bolson','admin'];
+  const names = ['dashboard','solicitud','solicitudes','reportes','bolson','mantenimiento','admin'];
   document.querySelectorAll('.nav-item').forEach((t,i)=>t.classList.toggle('active',names[i]===name));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('panel-'+name).classList.add('active');
-  if(name==='dashboard')   renderDashboard();
-  if(name==='solicitudes') { actualizarSolicitudesDesdeSupabase(); }
-  if(name==='reportes')    renderReportes();
-  if(name==='bolson')      renderBolson();
-  if(name==='admin')       { renderUsuarios(); renderCuposAdmin(); }
+  if(name==='dashboard')      renderDashboard();
+  if(name==='solicitud')      { renderExcepcionesGrid(); renderDropdownsForm(); }
+  if(name==='solicitudes')    { actualizarSolicitudesDesdeSupabase(); }
+  if(name==='reportes')       renderReportes();
+  if(name==='bolson')         renderBolson();
+  if(name==='mantenimiento')  renderMantenimiento();
+  if(name==='admin')          { renderUsuarios(); renderCuposAdmin(); }
 }
 
 // ══ FECHAS ══
@@ -1127,13 +1176,14 @@ function resetFechasRep() { document.getElementById('repDesde').value=primerDiaM
 
 // ══ SOLICITUD FORM ══
 function contarExcepciones() {
-  const ids = ['f_exc1','f_exc2','f_exc3','f_exc4','f_exc5','f_exc6','f_exc7','f_exc8'];
-  const total = ids.filter(id=>document.getElementById(id).value.trim()).length;
-  document.getElementById('f_totalexc').value = total;
+  let total = 0;
+  for (let i = 1; i <= 8; i++) {
+    const el = document.getElementById(`f_exc${i}`);
+    if (el && el.value) total++;
+  }
+  const tot = document.getElementById('f_totalexc');
+  if (tot) tot.value = total;
 }
-['f_exc1','f_exc2','f_exc3','f_exc4','f_exc5','f_exc6','f_exc7','f_exc8'].forEach(id=>{
-  document.getElementById(id).addEventListener('input', contarExcepciones);
-});
 
 async function guardarSolicitud() {
   const get = id => document.getElementById(id).value.trim();
@@ -1218,7 +1268,7 @@ function limpiarSolicitud() {
     'f_rci_ii','f_rci_gi','f_rci_if','f_rci_gf','f_politica','f_nivel','f_bajatasa',
     'f_exoneracion','f_referido','f_canal','f_tipocliente',
     'f_exc1','f_exc2','f_exc3','f_exc4','f_exc5','f_exc6','f_exc7','f_exc8','f_totalexc'];
-  ids.forEach(id=>document.getElementById(id).value='');
+  ids.forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('f_fecha').valueAsDate = new Date();
   document.getElementById('f_area').value = currentCentro || '';
   document.getElementById('f_no').value   = currentCentro ? peekCorrelativo(currentCentro) : '';
@@ -1651,6 +1701,151 @@ function renderReportes() {
       <td style="font-weight:600;color:var(--accent)">${fmtQ(mApr)}</td>
     </tr>`;
   }).join('');
+}
+
+// ══ MANTENIMIENTO — OPCIONES CONFIGURABLES ══
+let opcionesExcepciones = JSON.parse(localStorage.getItem('opc_excepciones') || 'null') || [
+  'Edad Mínima','Edad Máxima','Estabilidad Laboral','Ingresos Mínimos',
+  'Monto Mínimo','Monto Máximo (salarios)','Exposición Máxima','Plazo Mínimo',
+  'Plazo Máximo','Codeudor','Incremento de Exposición','Lapso Incremento en Tarjeta',
+  'RCI','Cantidad de Créditos Permitidos','Mora Actual','Tolerancia Cancelaciones',
+  'Contra Reserva','Mora Interna','Tolerancia de Mora SIRC',
+  'Experiencia Crediticia','Score Predictivo','Requisitos'
+];
+
+let opcionesCanales = JSON.parse(localStorage.getItem('opc_canales') || 'null') || [
+  'Centro de Negocios','Centro de Procesamiento','Banconsejos','Otro'
+];
+
+let opcionesTiposCliente = JSON.parse(localStorage.getItem('opc_tiposCliente') || 'null') || [
+  'Existente','Nuevo'
+];
+
+function guardarOpciones() {
+  localStorage.setItem('opc_excepciones',  JSON.stringify(opcionesExcepciones));
+  localStorage.setItem('opc_canales',       JSON.stringify(opcionesCanales));
+  localStorage.setItem('opc_tiposCliente',  JSON.stringify(opcionesTiposCliente));
+}
+
+function renderExcepcionesGrid() {
+  const grid = document.getElementById('excepcionesGrid');
+  if (!grid) return;
+  let html = '';
+  for (let i = 1; i <= 8; i++) {
+    const opts = opcionesExcepciones.map(o=>`<option value="${o}">${o}</option>`).join('');
+    html += `<div class="field-group">
+      <label>Excepción ${i}</label>
+      <select id="f_exc${i}" onchange="contarExcepciones()">
+        <option value="">— Seleccione —</option>
+        ${opts}
+      </select>
+    </div>`;
+  }
+  html += `<div class="field-group">
+    <label>Total de Excepciones</label>
+    <input type="number" id="f_totalexc" placeholder="0" readonly style="opacity:.7;cursor:not-allowed;">
+  </div>`;
+  grid.innerHTML = html;
+  // Re-registrar eventos
+  for (let i = 1; i <= 8; i++) {
+    document.getElementById(`f_exc${i}`)?.addEventListener('change', contarExcepciones);
+  }
+}
+
+function renderMantenimiento() {
+  // Excepciones
+  document.getElementById('excepcionesTable').innerHTML = opcionesExcepciones.map((o,i)=>`
+    <tr>
+      <td style="color:var(--text3)">${i+1}</td>
+      <td id="exc_lbl_${i}" style="font-size:13px">${o}</td>
+      <td style="display:flex;gap:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="editarOpcion('excepciones',${i})">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="eliminarOpcion('excepciones',${i})">🗑️</button>
+      </td>
+    </tr>`).join('');
+
+  // Canales
+  document.getElementById('canalesTable').innerHTML = opcionesCanales.map((o,i)=>`
+    <tr>
+      <td style="font-size:13px">${o}</td>
+      <td style="display:flex;gap:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="editarOpcion('canales',${i})">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="eliminarOpcion('canales',${i})">🗑️</button>
+      </td>
+    </tr>`).join('');
+
+  // Tipos cliente
+  document.getElementById('tiposClienteTable').innerHTML = opcionesTiposCliente.map((o,i)=>`
+    <tr>
+      <td style="font-size:13px">${o}</td>
+      <td style="display:flex;gap:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="editarOpcion('tiposCliente',${i})">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="eliminarOpcion('tiposCliente',${i})">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+function getOpciones(tipo) {
+  if (tipo==='excepciones')  return opcionesExcepciones;
+  if (tipo==='canales')      return opcionesCanales;
+  if (tipo==='tiposCliente') return opcionesTiposCliente;
+  return [];
+}
+
+function agregarExcepcion() { agregarOpcion('excepciones'); }
+
+function agregarOpcion(tipo) {
+  const nombre = prompt('Nombre de la nueva opción:');
+  if (!nombre || !nombre.trim()) return;
+  const arr = getOpciones(tipo);
+  arr.push(nombre.trim());
+  guardarOpciones();
+  renderMantenimiento();
+  renderExcepcionesGrid();
+  renderDropdownsForm();
+  showToast(`✅ Opción "${nombre.trim()}" agregada.`, 'success');
+}
+
+function editarOpcion(tipo, idx) {
+  const arr = getOpciones(tipo);
+  const nuevo = prompt('Editar nombre:', arr[idx]);
+  if (!nuevo || !nuevo.trim()) return;
+  arr[idx] = nuevo.trim();
+  guardarOpciones();
+  renderMantenimiento();
+  renderExcepcionesGrid();
+  renderDropdownsForm();
+  showToast('✅ Opción actualizada.', 'success');
+}
+
+function eliminarOpcion(tipo, idx) {
+  const arr = getOpciones(tipo);
+  if (!confirm(`¿Eliminar "${arr[idx]}"?`)) return;
+  arr.splice(idx, 1);
+  guardarOpciones();
+  renderMantenimiento();
+  renderExcepcionesGrid();
+  renderDropdownsForm();
+  showToast('🗑️ Opción eliminada.', 'warning');
+}
+
+function renderDropdownsForm() {
+  // Actualizar dropdown de canal en el formulario
+  const canalSel = document.getElementById('f_canal');
+  if (canalSel) {
+    const v = canalSel.value;
+    canalSel.innerHTML = `<option value="">— Seleccione —</option>` +
+      opcionesCanales.map(o=>`<option value="${o}">${o}</option>`).join('');
+    canalSel.value = v;
+  }
+  // Actualizar dropdown de tipo cliente
+  const tcSel = document.getElementById('f_tipocliente');
+  if (tcSel) {
+    const v = tcSel.value;
+    tcSel.innerHTML = `<option value="">— Seleccione —</option>` +
+      opcionesTiposCliente.map(o=>`<option value="${o}">${o}</option>`).join('');
+    tcSel.value = v;
+  }
 }
 
 // ══ BOLSÓN ══
