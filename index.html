@@ -2114,13 +2114,42 @@ function exportarCSV() {
   let fuente = solicitudes.filter(s=>{ const d=s.fecha||''; return !mes || d.slice(0,7)===mes; });
   if (currentRol==='subjefe') fuente = fuente.filter(s=>s.centro===currentCentro);
   if (!fuente.length) { showToast('No hay datos para exportar.','warning'); return; }
-  const headers = ['Centro','Ingresado Por','Estado','Fecha','No.Cliente','Nombre','Patrono','Producto','Monto Solicitado','Monto Aprobado','Plazo','Tasa','Excepciones','Revisado Por'];
-  const rows = fuente.map(s=>[s.centro,s.ingresadoPor,s.estado,s.fecha,s.nocliente,s.nombre,s.patrono,s.tipoproducto,s.monto,s.montoAprobado||0,s.plazo,s.tasa,s.totalexc,s.revisadoPor||''].map(v=>`"${v||''}"`).join(','));
+
+  const headers = [
+    'Centro','Ingresado Por','Fecha Ingreso','Estado','Revisado Por',
+    'Área Ingreso','No.','Fecha','No. Cliente','No. Crédito',
+    'Nombre Cliente','Nombre Patrono','Renglón','Tipo Producto','Segmento',
+    'Con Fiador','Tiempo Laborar','Monto Solicitado','Plazo','Tasa Aprobada Final',
+    'Tasa PreCA Acierto','Gastos','Cuota Interna','Salario',
+    'RCI Interno Inicial','RCI Global Inicial','RCI Interno Final','RCI Global Final',
+    'Monto Líquido','Liquidez Final Total','Tipo Cliente',
+    'Canal Ingreso','Política Validada','Nivel Aprobación',
+    'Baja de Tasa','Exoneración Gastos','Referido',
+    'Excepción 1','Excepción 2','Excepción 3','Excepción 4',
+    'Excepción 5','Excepción 6','Excepción 7','Excepción 8',
+    'Total Excepciones','Monto Aprobado','Observación Admin'
+  ];
+
+  const rows = fuente.map(r=>[
+    r.centro, r.ingresadoPor, r.fechaIngreso||'', r.estado, r.revisadoPor||'',
+    r.area||'', r.no||'', r.fecha||'', r.nocliente||'', r.credito||'',
+    r.nombre||'', r.patrono||'', r.renglon||'', r.tipoproducto||'', r.segmento||'',
+    r.fiador||'', r.tiempolaborar||'', r.monto||'', r.plazo||'', r.tasa||'',
+    r.tasapreca||'', r.gastos||'', r.cuota||'', r.salario||'',
+    r.rci_ii||'', r.rci_gi||'', r.rci_if||'', r.rci_gf||'',
+    r.montoliquido||'', r.liquidez||'', r.tipocliente||'',
+    r.canal||'', r.politica||'', r.nivel||'',
+    r.bajatasa||'', r.exoneracion||'', r.referido||'',
+    r.exc1||'', r.exc2||'', r.exc3||'', r.exc4||'',
+    r.exc5||'', r.exc6||'', r.exc7||'', r.exc8||'',
+    r.totalexc||0, r.montoAprobado||0, (r.obsAdmin||'').replace(/,/g,';')
+  ].map(v=>`"${v}"`).join(','));
+
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['\uFEFF'+[headers.join(','),...rows].join('\n')],{type:'text/csv;charset=utf-8;'}));
   a.download = `cupos_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
-  showToast('📥 CSV descargado.','success');
+  showToast('📥 CSV descargado con todos los campos.','success');
 }
 function exportarCSVReporte() { exportarCSV(); }
 
