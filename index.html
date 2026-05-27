@@ -2116,7 +2116,7 @@ async function crearUsuario() {
 
   try {
     // Crear usuario en Supabase Auth por medio de Edge Function segura.
-    const authRes = await fetch(`${SUPABASE_URL}/functions/v1/clever-service`, {
+    const authRes = await fetch(`${SUPABASE_URL}/functions/v1/crear-usuario`, {
       method: 'POST',
       headers: {
         'apikey': SUPABASE_KEY,
