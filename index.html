@@ -68,7 +68,7 @@
 
   .field-group { margin-bottom:18px; }
   label { display:block; font-size:11px; font-weight:600; color:var(--text2); letter-spacing:.08em; text-transform:uppercase; margin-bottom:7px; }
-  input[type="text"], input[type="password"], input[type="date"], input[type="number"],
+  input[type="text"], input[type="password"], input[type="email"], input[type="date"], input[type="number"],
   select, textarea {
     width:100%; background:var(--surface2); border:1.5px solid var(--border); border-radius:10px;
     color:var(--text); font-family:'DM Sans',sans-serif; font-size:14px; padding:11px 14px;
@@ -850,7 +850,7 @@
             </div>
             <div class="field-group">
               <label>Contraseña</label>
-              <input type="password" id="nu_pass" placeholder="Mínimo 6 caracteres">
+              <input type="password" id="nu_pass" placeholder="Mínimo 8 caracteres, mayúscula y número">
             </div>
             <div class="field-group">
               <label>Correo Teams</label>
@@ -2089,54 +2089,110 @@ async function crearUsuario() {
   const rol    = document.getElementById('nu_rol').value;
   const centro = document.getElementById('nu_centro').value;
 
-  if (!user||!pass||!email)      { showToast('⚠ Completa usuario, contraseña y correo.','warning'); return; }
-  if (pass.length < 8)           { showToast('⚠ Contraseña mínimo 8 caracteres.','warning'); return; }
-  if (!/[A-Z]/.test(pass))       { showToast('⚠ La contraseña debe tener al menos una mayúscula.','warning'); return; }
-  if (!/[0-9]/.test(pass))       { showToast('⚠ La contraseña debe tener al menos un número.','warning'); return; }
-  if (rol!=='admin'&&!centro)    { showToast('⚠ Selecciona el centro.','warning'); return; }
-  if (usuarios.find(u=>u.email===email)) { showToast('⚠ Ese correo ya existe.','warning'); return; }
-
-  // 1. Crear usuario en Supabase Auth
-  const authRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
-    method: 'POST',
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${supabaseSession.access_token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ email, password: pass, email_confirm: true })
-  });
-  const authData = await authRes.json();
-
-  if (authData.error || !authData.id) {
-    showToast(`❌ Error creando en Auth: ${authData.error?.message || 'Error desconocido'}`, 'error');
+  if (!user || !pass || !email) {
+    showToast('⚠ Completa usuario, contraseña y correo.', 'warning');
     return;
   }
 
-  // 2. Guardar perfil en tabla usuarios (sin password)
-  const nu = {
-    username: user, email, rol,
-    centro: rol==='admin' ? null : centro,
-    auth_id: authData.id,
-    creadoPor: currentUser,
-    fechaCreacion: new Date().toLocaleDateString('es-GT')
-  };
-  usuarios.push(nu); guardarUsuarios();
+  if (pass.length < 8) {
+    showToast('⚠ Contraseña mínimo 8 caracteres.', 'warning');
+    return;
+  }
+
+  if (!/[A-Z]/.test(pass)) {
+    showToast('⚠ La contraseña debe tener al menos una mayúscula.', 'warning');
+    return;
+  }
+
+  if (!/[0-9]/.test(pass)) {
+    showToast('⚠ La contraseña debe tener al menos un número.', 'warning');
+    return;
+  }
+
+  if (rol !== 'admin' && !centro) {
+    showToast('⚠ Selecciona el centro.', 'warning');
+    return;
+  }
+
+  if (usuarios.find(u => u.email === email)) {
+    showToast('⚠ Ese correo ya existe.', 'warning');
+    return;
+  }
 
   try {
-    await sbFetch('usuarios', {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/clever-service`, {
       method: 'POST',
-      body: { username:nu.username, email:nu.email, rol:nu.rol, centro:nu.centro, auth_id:nu.auth_id, creado_por:nu.creadoPor, fecha_creacion:nu.fechaCreacion }
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({
+        email: email,
+        password: pass,
+        username: user,
+        rol: rol,
+        centro: rol === 'admin' ? null : centro
+      })
     });
-  } catch(e) {}
 
-  document.getElementById('nu_user').value='';
-  document.getElementById('nu_pass').value='';
-  document.getElementById('nu_email').value='';
-  document.getElementById('nu_centro').value='';
-  renderUsuarios();
-  registrarLog('CREAR_USUARIO', `Usuario ${user} (${rol}) creado`);
-  showToast(`✅ Usuario "${user}" creado correctamente.`,'success');
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (e) {
+      data = {};
+    }
+
+    console.log('RESPUESTA CREAR USUARIO:', data);
+
+    if (!res.ok) {
+      showToast(`❌ Error: ${data.error || data.message || 'No se pudo crear usuario'}`, 'error');
+      return;
+    }
+
+    const nu = {
+      username: user,
+      email: email,
+      rol: rol,
+      centro: rol === 'admin' ? null : centro,
+      auth_id: data.auth_id || data.id || data.user?.id || '',
+      creadoPor: currentUser,
+      fechaCreacion: new Date().toLocaleDateString('es-GT')
+    };
+
+    usuarios.push(nu);
+    guardarUsuarios();
+
+    try {
+      await sbFetch('usuarios', {
+        method: 'POST',
+        body: {
+          username: nu.username,
+          email: nu.email,
+          rol: nu.rol,
+          centro: nu.centro,
+          auth_id: nu.auth_id,
+          creado_por: nu.creadoPor,
+          fecha_creacion: nu.fechaCreacion
+        }
+      });
+    } catch (e) {
+      console.log('Perfil ya pudo haber sido creado por la función:', e);
+    }
+
+    document.getElementById('nu_user').value = '';
+    document.getElementById('nu_pass').value = '';
+    document.getElementById('nu_email').value = '';
+    document.getElementById('nu_centro').value = '';
+
+    renderUsuarios();
+    registrarLog('CREAR_USUARIO', `Usuario ${user} (${rol}) creado`);
+    showToast(`✅ Usuario "${user}" creado correctamente.`, 'success');
+
+  } catch (e) {
+    console.log('ERROR CREAR USUARIO:', e);
+    showToast('❌ Error de conexión con Supabase.', 'error');
+  }
 }
 
 function renderUsuarios() {
