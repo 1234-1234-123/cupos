@@ -68,7 +68,7 @@
 
   .field-group { margin-bottom:18px; }
   label { display:block; font-size:11px; font-weight:600; color:var(--text2); letter-spacing:.08em; text-transform:uppercase; margin-bottom:7px; }
-  input[type="text"], input[type="password"], input[type="email"], input[type="date"], input[type="number"],
+  input[type="text"], input[type="password"], input[type="date"], input[type="number"],
   select, textarea {
     width:100%; background:var(--surface2); border:1.5px solid var(--border); border-radius:10px;
     color:var(--text); font-family:'DM Sans',sans-serif; font-size:14px; padding:11px 14px;
@@ -850,7 +850,7 @@
             </div>
             <div class="field-group">
               <label>Contraseña</label>
-              <input type="password" id="nu_pass" placeholder="Mínimo 8 caracteres, mayúscula y número">
+              <input type="password" id="nu_pass" placeholder="Mínimo 6 caracteres">
             </div>
             <div class="field-group">
               <label>Correo Teams</label>
@@ -2093,39 +2093,35 @@ async function crearUsuario() {
     showToast('⚠ Completa usuario, contraseña y correo.', 'warning');
     return;
   }
-
   if (pass.length < 8) {
     showToast('⚠ Contraseña mínimo 8 caracteres.', 'warning');
     return;
   }
-
   if (!/[A-Z]/.test(pass)) {
     showToast('⚠ La contraseña debe tener al menos una mayúscula.', 'warning');
     return;
   }
-
   if (!/[0-9]/.test(pass)) {
     showToast('⚠ La contraseña debe tener al menos un número.', 'warning');
     return;
   }
-
   if (rol !== 'admin' && !centro) {
     showToast('⚠ Selecciona el centro.', 'warning');
     return;
   }
-
   if (usuarios.find(u => u.email === email)) {
     showToast('⚠ Ese correo ya existe.', 'warning');
     return;
   }
 
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/clever-service`, {
+    // Crear usuario en Supabase Auth por medio de Edge Function segura.
+    const authRes = await fetch(`${SUPABASE_URL}/functions/v1/clever-service`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         email: email,
@@ -2136,26 +2132,23 @@ async function crearUsuario() {
       })
     });
 
-    let data = {};
-    try {
-      data = await res.json();
-    } catch (e) {
-      data = {};
-    }
+    const authData = await authRes.json().catch(() => ({}));
+    console.log('RESPUESTA CREAR USUARIO:', authData);
 
-    console.log('RESPUESTA CREAR USUARIO:', data);
-
-    if (!res.ok) {
-      showToast(`❌ Error: ${data.error || data.message || 'No se pudo crear usuario'}`, 'error');
+    if (!authRes.ok || authData.error) {
+      const msg = authData.error?.message || authData.error || 'No se pudo crear el usuario';
+      showToast(`❌ Error: ${msg}`, 'error');
       return;
     }
+
+    const authId = authData.id || authData.user?.id || authData.auth_id || '';
 
     const nu = {
       username: user,
       email: email,
       rol: rol,
       centro: rol === 'admin' ? null : centro,
-      auth_id: data.auth_id || data.id || data.user?.id || '',
+      auth_id: authId,
       creadoPor: currentUser,
       fechaCreacion: new Date().toLocaleDateString('es-GT')
     };
@@ -2177,7 +2170,7 @@ async function crearUsuario() {
         }
       });
     } catch (e) {
-      console.log('Perfil ya pudo haber sido creado por la función:', e);
+      console.log('Perfil usuario posiblemente ya insertado por Edge Function:', e);
     }
 
     document.getElementById('nu_user').value = '';
